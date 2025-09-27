@@ -1,0 +1,3 @@
+([('movies',
+   '/Users/lizavetakaptsilovich/course_python/pythonProject/hometasks/dist/movies',
+   'EXECUTABLE')],)
