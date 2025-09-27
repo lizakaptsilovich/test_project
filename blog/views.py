@@ -1,3 +1,4 @@
-from django.shortcuts import render
+from django.http import HttpResponse
 
-# Create your views here.
+def check_host(request):
+    return HttpResponse(f"HTTP_HOST: {request.get_host()}")
