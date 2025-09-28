@@ -20,7 +20,8 @@ from blog.views import check_host, home_page
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('check_host/', check_host)
+    path('check_host/', check_host),
+    path('', home_page)
 ]
 
 
