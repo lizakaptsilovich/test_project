@@ -1,7 +1,8 @@
 from django.http import HttpResponse
+from django.shortcuts import render
 
-def check_host(request):
-    return HttpResponse(f"HTTP_HOST: {request.get_host()}")
+def post_list(request):
+    return render(request, 'blog/post_list.html', {})
 
 def home_page(request):
     return HttpResponse("you made it!")
