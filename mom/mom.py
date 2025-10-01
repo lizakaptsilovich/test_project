@@ -1,19 +1,23 @@
-import datetime
+from datetime import datetime
 from tkinter import *
 from tkinter import ttk
 import os
 import re
 import pandas as pd
 
+
 folder_path = "/Users/lizavetakaptsilovich/Documents/mom"
 changes_file = "/Users/lizavetakaptsilovich/Documents/mom2/changes.xlsx"
 
 all_files = [i for i in os.listdir(folder_path) if i.endswith(".xlsx")]
 
-
 def file_to_date(file_name):
     name = re.sub(r"\.xlsx$", "", file_name).replace("на ", "")
-    return name
+    try:
+        date_obj = datetime.strptime(name, "%m.%Y")
+        return date_obj
+    except ValueError:
+        return datetime.min
 
 
 files_sorted = sorted(all_files, key=file_to_date, reverse=True)
@@ -39,6 +43,14 @@ headers_map = {
     "Опл п/ уведомл": "Оплата п/ ув"
 }
 
+dfs_cache = {}
+
+for file in files_sorted:
+    file_path = os.path.join(folder_path, file)
+    df = pd.read_excel(file_path, engine="openpyxl", sheet_name="Лицевые счета", header=1, dtype=str)
+    df["Лицевой счет"] = df["Лицевой счет"].astype(str)
+    dfs_cache[file] = df
+
 root = Tk()
 root.geometry("1200x800")
 root.grid_rowconfigure(4, weight=1)
@@ -55,7 +67,6 @@ def validate_account():
 
 
 def check_info():
-    # Очищаем Treeview перед поиском
     for row in text.get_children():
         text.delete(row)
 
@@ -64,12 +75,11 @@ def check_info():
         validation.config(text=error_message)
         return
 
-    validation.config(text="")  # очищаем сообщение об ошибке
+    validation.config(text="")
 
     drop1 = dropdown1.get()
     drop2 = dropdown2.get()
 
-    # Формируем список файлов для поиска
     if not drop1 and not drop2:
         drop_list = files_sorted
     elif drop1 == drop2:
@@ -83,28 +93,20 @@ def check_info():
         drop_list = sorted(drop_list, key=file_to_date, reverse=True)
 
     found = False
-    account_str = str(account)  # приводим к строке для сравнения
+    account_str = str(account)
     for file in drop_list:
-        try:
-            file_path = os.path.join(folder_path, file)
-            df = pd.read_excel(file_path, engine="openpyxl", sheet_name="Лицевые счета", header=1, dtype=str)  # читаем всё как строки
-            df["Лицевой счет"] = df["Лицевой счет"].astype(str)  # на всякий случай
-            row = df[df["Лицевой счет"] == account_str]
-            if not row.empty:
-                found = True
-                values = []
-                file_display = re.sub(r"\.xlsx$", "", file).replace("на ", "")
-                values.append(file_display)
-                for col in COLUMNS_TO_SHOW:
-                    val = row.iloc[0][col] if col in row.columns else ""
-                    values.append(val)
-                text.insert("", "end", values=values)
-        except FileNotFoundError:
-            validation.config(text=f"Файл {file} не найден")
-            return
-        except Exception as e:
-            validation.config(text=f"Неизвестная ошибка: {e}")
-            return
+        df = dfs_cache.get(file)
+        if df is None:
+            continue
+
+        row = df[df["Лицевой счет"] == account_str]
+        if not row.empty:
+            found = True
+            values = [re.sub(r"\.xlsx$", "", file).replace("на ", "")]
+            for col in COLUMNS_TO_SHOW:
+                val = row.iloc[0][col] if col in row.columns else ""
+                values.append(val)
+            text.insert("", "end", values=values)
 
     if not found:
         validation.config(text=f"Лицевой счет {account} не найден")
@@ -129,7 +131,7 @@ def add_measure_func():
     day.grid(row=2, column=1)
     month = Spinbox(frame3, from_=1, to=12, width=5)
     month.grid(row=2, column=2)
-    year = Spinbox(frame3, value=2025, width=5)
+    year = Spinbox(frame3, values=2025, width=5)
     year.grid(row=2, column=3)
     measure_name = Label(popup, text="Выберите меру:")
     measure_name.grid(row=3, column=0, padx=(20, 5), pady=5, sticky="e")
@@ -149,7 +151,7 @@ def add_measure_func():
         y = year.get().strip()
         meas = measure.get().strip()
 
-        # Создаём dmy только если мера выбрана, чтобы избежать ошибок
+        # Создаём dmy только если мера выбрана
         dmy = f"{int(d):02d}.{int(m):02d}.{y}" if meas else ""
 
         try:
@@ -178,7 +180,7 @@ def add_measure_func():
                     dates = old_record.split('\n')
 
                 dates.append(dmy)
-                sorted_dates = sorted(dates, key=lambda x: datetime.datetime.strptime(x, "%d.%m.%Y"))
+                sorted_dates = sorted(dates, key=lambda x: datetime.strptime(x, "%d.%m.%Y"))
                 df.loc[df["Л/С"] == account_id, meas] = "\n".join(sorted_dates)
             else:
                 save_validation.config(text=f"Мера не выбрана.")
@@ -358,9 +360,15 @@ for col in columns:
     else:
         width = 90
     text.column(col, width=width, anchor="e")
-text.grid(row=0, column=0, padx=5, pady=5)
+# text.grid(row=0, column=0, padx=5, pady=5)
+scrollbar_y = ttk.Scrollbar(frame1, orient="vertical", command=text.yview)
+text.configure(yscrollcommand=scrollbar_y.set)
+text.grid(row=0, column=0, sticky="nsew")
+scrollbar_y.grid(row=0, column=1, sticky="ns")
+frame1.grid_rowconfigure(0, weight=1)
+frame1.grid_columnconfigure(0, weight=1)
 comments = Text(frame1, height=5, width=50, wrap="word")
-comments.grid(row=0, column=1, padx=(25, 5), pady=(5, 40))
+comments.grid(row=0, column=2, padx=(25, 5), pady=(5, 40))
 add_measure = Button(frame3, text='Добавить меру', command=add_measure_func, state="disabled")
 add_measure.grid(row=0, column=0, pady=5, sticky="w")
 edit_comment = Button(frame3, text='Обновить комментарий', state="disabled")

@@ -1,0 +1,9 @@
+h3 a {
+    color: #FCA205;
+    font: 'Inter';
+}
+
+body {
+    padding-left: 15px;
+    background: pink !important;
+}
